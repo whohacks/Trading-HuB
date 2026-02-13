@@ -97,6 +97,27 @@ export default function AlertsPage({ session }) {
       return;
     }
 
+    try {
+      const quote = await fetchCurrentPrice(symbol);
+      const currentPrice = Number(quote?.price || 0);
+      const alreadyHit =
+        form.trigger_direction === "above"
+          ? currentPrice >= targetPrice
+          : currentPrice <= targetPrice;
+
+      if (alreadyHit) {
+        setStatus(
+          `Target already hit (current: ${formatPrice(currentPrice)}). Choose a target not yet reached.`,
+        );
+        setBusy(false);
+        return;
+      }
+    } catch (_error) {
+      setStatus("Could not validate current price. Try again.");
+      setBusy(false);
+      return;
+    }
+
     const payload = {
       user_id: session.user.id,
       title: form.title,
