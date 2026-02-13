@@ -1,4 +1,3 @@
-import { requireApiAuth } from "../../../lib/apiAuth";
 import { applyCors } from "../../../lib/apiCors";
 import { fetchSymbolPrice } from "../../../lib/marketPrice";
 
@@ -8,9 +7,6 @@ export default async function handler(req, res) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
-
-  const user = await requireApiAuth(req, res);
-  if (!user) return;
 
   try {
     const symbol = String(req.query.symbol || "").toUpperCase().trim();
