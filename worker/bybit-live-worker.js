@@ -39,6 +39,10 @@ function toLinearSymbols(symbols) {
   return symbols.filter((s) => s.endsWith("USDT") || s.endsWith("USDC"));
 }
 
+function isLinearSymbol(symbol) {
+  return symbol.endsWith("USDT") || symbol.endsWith("USDC");
+}
+
 class BybitStream {
   constructor(url, name) {
     this.url = url;
@@ -124,7 +128,6 @@ class BybitStream {
 }
 
 const linearStream = new BybitStream("wss://stream.bybit.com/v5/public/linear", "bybit-linear");
-const spotStream = new BybitStream("wss://stream.bybit.com/v5/public/spot", "bybit-spot");
 
 const state = {
   alerts: [],
@@ -173,12 +176,12 @@ async function loadState() {
     new Set(
       state.alerts
         .map((row) => normalizeSymbol(row.symbol))
+        .filter((symbol) => isLinearSymbol(symbol))
         .filter(Boolean),
     ),
   );
 
-  linearStream.subscribeSymbols(toLinearSymbols(symbols));
-  spotStream.subscribeSymbols(symbols);
+  linearStream.subscribeSymbols(symbols);
   console.log(`synced alerts=${state.alerts.length} symbols=${symbols.length}`);
 }
 
@@ -258,13 +261,11 @@ function evaluateSymbolPrice(symbol, currentPrice) {
 }
 
 linearStream.onPrice = evaluateSymbolPrice;
-spotStream.onPrice = evaluateSymbolPrice;
 
 async function start() {
   console.log("starting live alert worker");
   await loadState();
   linearStream.connect();
-  spotStream.connect();
   setInterval(loadState, POLL_INTERVAL_MS);
 }
 

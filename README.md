@@ -108,7 +108,7 @@ Use this for instant push alerts without local polling.
 
 5. On trigger, webhook sends Telegram instantly.
 
-## 6) True live alerts worker (Bybit WebSocket, instant trigger)
+## 6) True live alerts worker (Bybit Futures WebSocket, instant trigger)
 
 Use this for exact live price monitoring (tick stream), independent of Vercel cron.
 
@@ -129,9 +129,9 @@ npm run worker:alerts
 ```
 
 What it does:
-- Connects to Bybit WebSocket (`linear` + `spot`)
+- Connects to Bybit Futures WebSocket (`linear`)
 - Loads active unsent alerts from Supabase
-- Subscribes only needed symbols
+- Subscribes only needed USDT/USDC perpetual symbols
 - Triggers Telegram instantly when price crosses target
 - Marks alert as triggered in Supabase
 
