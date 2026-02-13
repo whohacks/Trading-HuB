@@ -11,6 +11,7 @@ const SUPABASE_SERVICE_ROLE_KEY = env("SUPABASE_SERVICE_ROLE_KEY");
 const TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN");
 const TELEGRAM_CHAT_ID = env("TELEGRAM_CHAT_ID");
 const POLL_INTERVAL_MS = Number(env("ALERT_WORKER_SYNC_MS", "15000"));
+const REST_CHECK_MS = Number(env("ALERT_WORKER_REST_CHECK_MS", "3000"));
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   throw new Error("Missing SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
@@ -197,7 +198,24 @@ async function sendTelegram(botToken, chatId, text) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id: chatId, text }),
   });
-  return response.ok;
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch (_error) {
+    payload = null;
+  }
+  return { ok: response.ok, payload };
+}
+
+async function fetchLinearPrice(symbol) {
+  const response = await fetch(
+    `https://api.bybit.com/v5/market/tickers?category=linear&symbol=${encodeURIComponent(symbol)}`,
+  );
+  if (!response.ok) return null;
+  const payload = await response.json();
+  const row = payload?.result?.list?.[0];
+  const price = Number(row?.lastPrice || 0);
+  return Number.isFinite(price) && price > 0 ? price : null;
 }
 
 async function triggerAlert(alertRow, currentPrice) {
@@ -207,10 +225,9 @@ async function triggerAlert(alertRow, currentPrice) {
 
   try {
     const settings = state.settingsByUser.get(alertRow.user_id);
-    if (settings?.alerts_auto_sync === false) return;
-
-    const botToken = settings?.telegram_bot_token || TELEGRAM_BOT_TOKEN;
-    const chatId = settings?.telegram_chat_id || TELEGRAM_CHAT_ID;
+    // Prefer global env creds first to avoid stale per-user tokens preventing delivery.
+    const botToken = TELEGRAM_BOT_TOKEN || settings?.telegram_bot_token;
+    const chatId = TELEGRAM_CHAT_ID || settings?.telegram_chat_id;
     if (!botToken || !chatId) return;
 
     const text = [
@@ -221,8 +238,14 @@ async function triggerAlert(alertRow, currentPrice) {
       `Current: ${Number(currentPrice || 0).toFixed(6)}`,
     ].join("\n");
 
-    const ok = await sendTelegram(botToken, chatId, text);
-    if (!ok) return;
+    const telegram = await sendTelegram(botToken, chatId, text);
+    if (!telegram.ok) {
+      console.error(
+        `telegram send failed alert=${alertRow.id} symbol=${alertRow.symbol}`,
+        telegram.payload || "",
+      );
+      return;
+    }
 
     const nowIso = new Date().toISOString();
     const { error } = await supabase
@@ -267,6 +290,25 @@ function evaluateSymbolPrice(symbol, currentPrice) {
   }
 }
 
+async function evaluateByRestSnapshot() {
+  const symbols = Array.from(
+    new Set(
+      state.alerts
+        .map((row) => normalizeSymbol(row.symbol))
+        .filter((symbol) => isLinearSymbol(symbol))
+        .filter(Boolean),
+    ),
+  );
+  for (const symbol of symbols) {
+    try {
+      const price = await fetchLinearPrice(symbol);
+      if (price !== null) evaluateSymbolPrice(symbol, price);
+    } catch (_error) {
+      // ignore; websocket will continue
+    }
+  }
+}
+
 linearStream.onPrice = evaluateSymbolPrice;
 
 async function start() {
@@ -274,6 +316,8 @@ async function start() {
   await loadState();
   linearStream.connect();
   setInterval(loadState, POLL_INTERVAL_MS);
+  await evaluateByRestSnapshot();
+  setInterval(evaluateByRestSnapshot, REST_CHECK_MS);
 }
 
 start().catch((error) => {
