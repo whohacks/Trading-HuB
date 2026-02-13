@@ -141,9 +141,9 @@ export default function AlertsPage({ session }) {
         return;
       }
     } catch (_error) {
-      setStatus("Unable to fetch Bybit futures price for this symbol.");
-      setBusy(false);
-      return;
+      setStatus(
+        "Bybit price check unavailable right now. Alert saved anyway and will trigger when live worker receives price stream.",
+      );
     }
 
     const payload = {
