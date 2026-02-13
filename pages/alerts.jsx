@@ -448,7 +448,22 @@ export default function AlertsPage({ session }) {
                     <td>{row.title}</td>
                     <td>{row.symbol || "-"}</td>
                     <td>{row.target_price ? `${formatPrice(row.target_price)} (${row.trigger_direction || "above"})` : "-"}</td>
-                    <td>{isMonitoring ? (liveValue !== null ? formatPrice(liveValue) : "N/A") : "-"}</td>
+                    <td>
+                      {isMonitoring ? (
+                        liveValue !== null ? (
+                          <span>
+                            {formatPrice(liveValue)}
+                            {live?.source ? (
+                              <span className="source-chip">{String(live.source).replace("coingecko-direct", "coingecko")}</span>
+                            ) : null}
+                          </span>
+                        ) : (
+                          "N/A"
+                        )
+                      ) : (
+                        "-"
+                      )}
+                    </td>
                     <td>
                       {!isMonitoring || delta === null ? (
                         "-"
@@ -518,7 +533,22 @@ export default function AlertsPage({ session }) {
                   </div>
                   <div className="mobile-meta-row">
                     <span>Live</span>
-                    <span>{isMonitoring ? (liveValue !== null ? formatPrice(liveValue) : "N/A") : "-"}</span>
+                    <span>
+                      {isMonitoring ? (
+                        liveValue !== null ? (
+                          <>
+                            {formatPrice(liveValue)}
+                            {live?.source ? (
+                              <span className="source-chip">{String(live.source).replace("coingecko-direct", "coingecko")}</span>
+                            ) : null}
+                          </>
+                        ) : (
+                          "N/A"
+                        )
+                      ) : (
+                        "-"
+                      )}
+                    </span>
                   </div>
                   <div className="mobile-meta-row">
                     <span>Delta</span>
@@ -650,6 +680,19 @@ export default function AlertsPage({ session }) {
         .alert-chip.hit {
           border-color: rgba(160, 160, 160, 0.7);
           color: #d4d4d4;
+        }
+
+        .source-chip {
+          display: inline-block;
+          margin-left: 8px;
+          padding: 2px 6px;
+          border-radius: 999px;
+          border: 1px solid rgba(130, 130, 130, 0.45);
+          color: #bcbcbc;
+          font-size: 11px;
+          line-height: 1.2;
+          vertical-align: middle;
+          text-transform: lowercase;
         }
 
         @media (max-width: 900px) {
