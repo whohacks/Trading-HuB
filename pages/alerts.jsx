@@ -46,7 +46,6 @@ export default function AlertsPage({ session }) {
   });
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
-  const checkingRef = useRef(false);
   const triggeringRef = useRef(new Set());
   const wsRefs = useRef({
     linear: null,
@@ -188,36 +187,6 @@ export default function AlertsPage({ session }) {
     setBusy(false);
   }
 
-  async function checkPriceAlerts({ silent = false } = {}) {
-    if (checkingRef.current) return;
-    if (!settingsFlags.telegramConfigured) return;
-
-    checkingRef.current = true;
-
-    try {
-      const response = await fetch(apiUrl("/api/alerts/check"), {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-      const payload = await response.json();
-
-      if (!response.ok) {
-        if (!silent) setStatus(payload?.error || "Alert check failed.");
-        return;
-      }
-
-      if (Number(payload?.triggered || 0) > 0) {
-        await loadData();
-      } else if (!silent) {
-        setStatus("Alert check completed.");
-      }
-    } finally {
-      checkingRef.current = false;
-    }
-  }
-
   async function refreshLivePricesForAlerts() {
     const symbols = Array.from(
       new Set(
@@ -243,12 +212,6 @@ export default function AlertsPage({ session }) {
       return next;
     });
     setLiveUpdatedAt(new Date().toISOString());
-  }
-
-  async function checkNow() {
-    setStatus("Checking active alerts...");
-    await checkPriceAlerts({ silent: false });
-    await refreshLivePricesForAlerts();
   }
 
   async function deleteAlert(alertId) {
@@ -421,14 +384,6 @@ export default function AlertsPage({ session }) {
             <p className="eyebrow">Alert Center</p>
             <h2>Price Alerts</h2>
             <p>Bybit futures only monitoring with live WebSocket updates.</p>
-          </div>
-          <div className="alerts-actions">
-            <button className="ghost" type="button" onClick={refreshLivePricesForAlerts}>
-              Refresh Prices
-            </button>
-            <button className="primary" type="button" onClick={checkNow} disabled={busy}>
-              Check Now
-            </button>
           </div>
         </div>
 
