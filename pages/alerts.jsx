@@ -30,6 +30,12 @@ function isLinearSymbol(symbol) {
   return symbol.endsWith("USDT") || symbol.endsWith("USDC");
 }
 
+function isHit(direction, currentPrice, targetPrice) {
+  if (!Number.isFinite(currentPrice) || !Number.isFinite(targetPrice)) return false;
+  if (direction === "below") return currentPrice <= targetPrice;
+  return currentPrice >= targetPrice;
+}
+
 export default function AlertsPage({ session }) {
   const [form, setForm] = useState(initialForm);
   const [livePrices, setLivePrices] = useState({});
@@ -41,6 +47,7 @@ export default function AlertsPage({ session }) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const checkingRef = useRef(false);
+  const triggeringRef = useRef(new Set());
   const wsRefs = useRef({
     linear: null,
     reconnectTimer: null,
@@ -86,6 +93,13 @@ export default function AlertsPage({ session }) {
 
   useEffect(() => {
     loadData();
+  }, [session.user.id]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      loadData();
+    }, 5000);
+    return () => clearInterval(id);
   }, [session.user.id]);
 
   async function fetchCurrentPrice(symbol) {
@@ -258,12 +272,60 @@ export default function AlertsPage({ session }) {
     setBusy(false);
   }
 
+  async function triggerDirect(alertId, currentPrice) {
+    if (!alertId || !Number.isFinite(currentPrice)) return;
+    if (triggeringRef.current.has(alertId)) return;
+    triggeringRef.current.add(alertId);
+
+    try {
+      const {
+        data: { session: freshSession },
+      } = await supabase.auth.getSession();
+      const accessToken = freshSession?.access_token || session.access_token;
+      const response = await fetch(apiUrl("/api/alerts/trigger-direct"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ alertId, currentPrice }),
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (response.ok) {
+        setStatus("Alert triggered and sent to Telegram.");
+        await loadData();
+      } else {
+        setStatus(payload?.error || "Trigger failed");
+      }
+    } finally {
+      setTimeout(() => triggeringRef.current.delete(alertId), 1500);
+    }
+  }
+
   useEffect(() => {
     if (!monitoringSymbols.length) return undefined;
     refreshLivePricesForAlerts();
     const id = setInterval(refreshLivePricesForAlerts, 15000);
     return () => clearInterval(id);
   }, [monitoringSymbols.join("|")]);
+
+  useEffect(() => {
+    const activeAlerts = alerts.filter((row) => row.is_active && !row.sent_to_telegram);
+    for (const row of activeAlerts) {
+      const symbol = normalizeSymbol(row.symbol);
+      const live = livePrices[symbol];
+      const liveValue = live?.ok ? Number(live.price) : null;
+      const targetPrice = Number(row.target_price || 0);
+      if (!Number.isFinite(liveValue) || !Number.isFinite(targetPrice) || targetPrice <= 0) {
+        continue;
+      }
+      const direction = String(row.trigger_direction || "above");
+      if (isHit(direction, liveValue, targetPrice)) {
+        triggerDirect(row.id, liveValue);
+      }
+    }
+  }, [alerts, livePrices]);
 
   useEffect(() => {
     if (typeof WebSocket === "undefined") return undefined;
