@@ -35,6 +35,12 @@ function crossedTarget(direction, previousPrice, currentPrice, targetPrice) {
   return previousPrice < targetPrice && currentPrice >= targetPrice;
 }
 
+function isHit(direction, currentPrice, targetPrice) {
+  if (!Number.isFinite(currentPrice) || !Number.isFinite(targetPrice)) return false;
+  if (direction === "below") return currentPrice <= targetPrice;
+  return currentPrice >= targetPrice;
+}
+
 function toLinearSymbols(symbols) {
   return symbols.filter((s) => s.endsWith("USDT") || s.endsWith("USDC"));
 }
@@ -245,8 +251,6 @@ function evaluateSymbolPrice(symbol, currentPrice) {
   const previousPrice = state.lastPriceBySymbol.get(normalized);
   state.lastPriceBySymbol.set(normalized, currentPrice);
 
-  if (!Number.isFinite(previousPrice)) return;
-
   const matching = state.alerts.filter(
     (row) => normalizeSymbol(row.symbol) === normalized,
   );
@@ -254,7 +258,10 @@ function evaluateSymbolPrice(symbol, currentPrice) {
     const target = Number(alertRow.target_price || 0);
     if (!target || !Number.isFinite(target)) continue;
     const direction = alertRow.trigger_direction || "above";
-    if (crossedTarget(direction, previousPrice, currentPrice, target)) {
+    const shouldTrigger = Number.isFinite(previousPrice)
+      ? crossedTarget(direction, previousPrice, currentPrice, target)
+      : isHit(direction, currentPrice, target);
+    if (shouldTrigger) {
       triggerAlert(alertRow, currentPrice);
     }
   }
