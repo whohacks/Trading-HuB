@@ -113,9 +113,7 @@ export default function AlertsPage({ session }) {
         return;
       }
     } catch (_error) {
-      setStatus("Could not validate current price. Try again.");
-      setBusy(false);
-      return;
+      // If price provider is temporarily unavailable, still allow alert creation.
     }
 
     const payload = {
