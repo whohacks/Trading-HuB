@@ -1,4 +1,5 @@
 import { requireApiAuth } from "../../../lib/apiAuth";
+import { applyCors } from "../../../lib/apiCors";
 
 function nextOrExisting(nextValue, existingValue) {
   if (typeof nextValue !== "string") return existingValue || "";
@@ -7,6 +8,8 @@ function nextOrExisting(nextValue, existingValue) {
 }
 
 export default async function handler(req, res) {
+  if (applyCors(req, res)) return;
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }

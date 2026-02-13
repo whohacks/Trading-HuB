@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { apiUrl } from "../lib/apiBase";
 
 function formatNum(value, decimals = 4) {
   const parsed = Number(value || 0);
@@ -31,7 +32,7 @@ export default function Dashboard({ session }) {
     }
 
     try {
-      const response = await fetch("/api/binance/account", {
+      const response = await fetch(apiUrl("/api/binance/account"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -66,7 +67,7 @@ export default function Dashboard({ session }) {
 
   useEffect(() => {
     async function bootstrap() {
-      const response = await fetch("/api/settings/flags", {
+      const response = await fetch(apiUrl("/api/settings/flags"), {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       const payload = await response.json();

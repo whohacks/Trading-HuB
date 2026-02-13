@@ -1,5 +1,6 @@
 import { createHmac } from "crypto";
 import { requireApiAuth } from "../../../lib/apiAuth";
+import { applyCors } from "../../../lib/apiCors";
 
 function signQuery(query, apiSecret) {
   return createHmac("sha256", apiSecret).update(query).digest("hex");
@@ -33,6 +34,8 @@ function nonZeroNumber(value) {
 }
 
 export default async function handler(req, res) {
+  if (applyCors(req, res)) return;
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }

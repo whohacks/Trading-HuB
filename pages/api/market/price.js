@@ -1,6 +1,10 @@
 import { requireApiAuth } from "../../../lib/apiAuth";
+import { applyCors } from "../../../lib/apiCors";
+import { fetchSymbolPrice } from "../../../lib/marketPrice";
 
 export default async function handler(req, res) {
+  if (applyCors(req, res)) return;
+
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -15,21 +19,11 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing symbol" });
     }
 
-    const response = await fetch(
-      `https://api.binance.com/api/v3/ticker/price?symbol=${encodeURIComponent(symbol)}`,
-    );
-
-    if (!response.ok) {
-      const failText = await response.text();
-      return res
-        .status(400)
-        .json({ error: failText || `Price request failed (${response.status})` });
-    }
-
-    const payload = await response.json();
+    const payload = await fetchSymbolPrice(symbol);
     return res.status(200).json({
-      symbol: payload.symbol,
+      symbol: payload.symbol || symbol,
       price: Number(payload.price || 0),
+      source: payload.source || "unknown",
       fetchedAt: new Date().toISOString(),
     });
   } catch (error) {

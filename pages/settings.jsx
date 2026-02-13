@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { LogOut } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
+import { apiUrl } from "../lib/apiBase";
 
 const defaults = {
   exchange_api_key: "",
@@ -28,7 +29,7 @@ export default function SettingsPage({ session }) {
 
   useEffect(() => {
     async function load() {
-      const response = await fetch("/api/settings/flags", {
+      const response = await fetch(apiUrl("/api/settings/flags"), {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
@@ -60,7 +61,7 @@ export default function SettingsPage({ session }) {
     setBusy(true);
     setStatus("");
 
-    const response = await fetch("/api/settings/update", {
+    const response = await fetch(apiUrl("/api/settings/update"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

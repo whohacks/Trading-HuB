@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { byCategoryWinRate, safeNumber } from "../lib/metrics";
+import { apiUrl } from "../lib/apiBase";
 
 const initialCategories = [
   "API Imported",
@@ -211,7 +212,7 @@ export default function JournalPage({ session }) {
     }
 
     try {
-      const response = await fetch("/api/binance/completed-trades", {
+      const response = await fetch(apiUrl("/api/binance/completed-trades"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

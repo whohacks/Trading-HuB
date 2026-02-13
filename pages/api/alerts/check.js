@@ -1,4 +1,6 @@
 import { requireApiAuth } from "../../../lib/apiAuth";
+import { applyCors } from "../../../lib/apiCors";
+import { fetchSymbolPrice } from "../../../lib/marketPrice";
 
 function normalizeSymbol(symbol) {
   return String(symbol || "").toUpperCase().replace(/\s+/g, "");
@@ -9,21 +11,9 @@ function isHit({ direction, currentPrice, targetPrice }) {
   return currentPrice >= targetPrice;
 }
 
-async function fetchCurrentPrice(symbol) {
-  const response = await fetch(
-    `https://api.binance.com/api/v3/ticker/price?symbol=${encodeURIComponent(symbol)}`,
-  );
-
-  if (!response.ok) {
-    const failText = await response.text();
-    throw new Error(failText || `Price request failed (${response.status})`);
-  }
-
-  const payload = await response.json();
-  return Number(payload.price || 0);
-}
-
 export default async function handler(req, res) {
+  if (applyCors(req, res)) return;
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -78,7 +68,8 @@ export default async function handler(req, res) {
 
     let currentPrice = 0;
     try {
-      currentPrice = await fetchCurrentPrice(symbol);
+      const market = await fetchSymbolPrice(symbol);
+      currentPrice = Number(market.price || 0);
     } catch (_error) {
       await auth.supabase
         .from("alerts")

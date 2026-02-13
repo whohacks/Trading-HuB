@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { apiUrl } from "../lib/apiBase";
 
 const initialForm = {
   title: "",
@@ -44,7 +45,7 @@ export default function AlertsPage({ session }) {
         .select("*")
         .eq("user_id", userId)
         .order("created_at", { ascending: false }),
-      fetch("/api/settings/flags", {
+      fetch(apiUrl("/api/settings/flags"), {
         headers: { Authorization: `Bearer ${session.access_token}` },
       }),
     ]);
@@ -66,7 +67,7 @@ export default function AlertsPage({ session }) {
 
   async function fetchCurrentPrice(symbol) {
     const response = await fetch(
-      `/api/market/price?symbol=${encodeURIComponent(symbol)}`,
+      apiUrl(`/api/market/price?symbol=${encodeURIComponent(symbol)}`),
       {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -159,7 +160,7 @@ export default function AlertsPage({ session }) {
     checkingRef.current = true;
 
     try {
-      const response = await fetch("/api/alerts/check", {
+      const response = await fetch(apiUrl("/api/alerts/check"), {
         method: "POST",
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -236,13 +237,6 @@ export default function AlertsPage({ session }) {
   }
 
   useEffect(() => {
-    const id = setInterval(() => {
-      checkPriceAlerts({ silent: true });
-    }, 5000);
-    return () => clearInterval(id);
-  }, [alerts, settingsFlags.telegramConfigured]);
-
-  useEffect(() => {
     refreshLivePricesForAlerts();
     const id = setInterval(refreshLivePricesForAlerts, 5000);
     return () => clearInterval(id);
@@ -285,7 +279,7 @@ export default function AlertsPage({ session }) {
           <div>
             <p className="eyebrow">Alert Center</p>
             <h2>Price Alerts</h2>
-            <p>Create, monitor, and auto-trigger Telegram alerts with live market prices.</p>
+            <p>Create alerts, run manual sync, and get server-side auto checks every minute on Vercel.</p>
           </div>
           <div className="alerts-actions">
             <button className="ghost" type="button" onClick={refreshLivePricesForAlerts}>
