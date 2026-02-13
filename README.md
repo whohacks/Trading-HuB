@@ -137,6 +137,22 @@ What it does:
 
 Deploy this worker on an always-on service (Render/Railway/Fly.io) for 24x7 live alerts.
 
+### Render deploy (recommended)
+
+1. Push latest code to GitHub.
+2. In Render, click **New +** -> **Blueprint**.
+3. Connect repo `whohacks/Trading-HuB` and deploy `render.yaml`.
+4. In worker service env vars, set:
+   - `SUPABASE_URL=https://jqmzkhgnjovirlprhcea.supabase.co`
+   - `SUPABASE_SERVICE_ROLE_KEY=<service_role>`
+   - `TELEGRAM_BOT_TOKEN=<your bot token>`
+   - `TELEGRAM_CHAT_ID=<your chat id>`
+5. Start/redeploy worker.
+6. Check worker logs for:
+   - `starting live alert worker`
+   - `synced alerts=... symbols=...`
+   - `triggered ... alert=...`
+
 ## Notes
 - Telegram sending is handled through authenticated backend API routes.
 - TradingView webhook route is `/api/tradingview/webhook` and validates `TV_WEBHOOK_SECRET`.
