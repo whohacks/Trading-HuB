@@ -70,6 +70,18 @@ export default function AlertsPage({ session }) {
     reconnectTimer: null,
     stopped: false,
   });
+  const monitoringSymbols = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          alerts
+            .filter((row) => row.is_active && !row.sent_to_telegram)
+            .map((row) => normalizeSymbol(row.symbol))
+            .filter(Boolean),
+        ),
+      ),
+    [alerts],
+  );
 
   async function loadData() {
     const userId = session.user.id;
@@ -292,6 +304,7 @@ export default function AlertsPage({ session }) {
   }, [monitoringSymbols.join("|")]);
 
   useEffect(() => {
+    if (typeof WebSocket === "undefined") return undefined;
     const refs = wsRefs.current;
     refs.stopped = false;
 
@@ -405,18 +418,6 @@ export default function AlertsPage({ session }) {
   );
 
   const telegramReady = Boolean(settingsFlags.telegramConfigured);
-  const monitoringSymbols = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          alerts
-            .filter((row) => row.is_active && !row.sent_to_telegram)
-            .map((row) => normalizeSymbol(row.symbol))
-            .filter(Boolean),
-        ),
-      ),
-    [alerts],
-  );
 
   return (
     <div className="stack">
