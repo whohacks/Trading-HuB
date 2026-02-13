@@ -20,6 +20,33 @@ function formatPrice(value, decimals = 6) {
   return Number.isFinite(parsed) ? parsed.toFixed(decimals) : "-";
 }
 
+const coingeckoIdMap = {
+  BTC: "bitcoin",
+  ETH: "ethereum",
+  BNB: "binancecoin",
+  SOL: "solana",
+  XRP: "ripple",
+  ADA: "cardano",
+  DOGE: "dogecoin",
+  TRX: "tron",
+  AVAX: "avalanche-2",
+  DOT: "polkadot",
+  LINK: "chainlink",
+  MATIC: "matic-network",
+  LTC: "litecoin",
+  BCH: "bitcoin-cash",
+};
+
+function splitSymbol(symbol) {
+  const value = normalizeSymbol(symbol);
+  if (value.endsWith("USDT")) return { base: value.slice(0, -4), quote: "usd" };
+  if (value.endsWith("USDC")) return { base: value.slice(0, -4), quote: "usd" };
+  if (value.endsWith("USD")) return { base: value.slice(0, -3), quote: "usd" };
+  if (value.endsWith("BTC")) return { base: value.slice(0, -3), quote: "btc" };
+  if (value.endsWith("ETH")) return { base: value.slice(0, -3), quote: "eth" };
+  return { base: value, quote: "usd" };
+}
+
 export default function AlertsPage({ session }) {
   const [form, setForm] = useState(initialForm);
   const [livePrices, setLivePrices] = useState({});
@@ -61,25 +88,42 @@ export default function AlertsPage({ session }) {
   }, [session.user.id]);
 
   async function fetchCurrentPrice(symbol) {
-    const response = await fetch(
-      apiUrl(`/api/market/price?symbol=${encodeURIComponent(symbol)}`),
-      {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      },
-    );
-    const payload = await response.json();
+    try {
+      const response = await fetch(
+        apiUrl(`/api/market/price?symbol=${encodeURIComponent(symbol)}`),
+      );
+      const payload = await response.json();
 
-    if (!response.ok) {
-      throw new Error(payload?.error || "Failed to fetch price");
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to fetch price");
+      }
+
+      return {
+        price: Number(payload.price || 0),
+        source: payload.source || "unknown",
+        fetchedAt: payload.fetchedAt || new Date().toISOString(),
+      };
+    } catch (_error) {
+      const { base, quote } = splitSymbol(symbol);
+      const coinId = coingeckoIdMap[base];
+      if (!coinId) throw new Error("Failed to fetch price");
+
+      const fallbackRes = await fetch(
+        `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(coinId)}&vs_currencies=${encodeURIComponent(quote)}`,
+      );
+      const fallbackPayload = await fallbackRes.json();
+      const price = Number(fallbackPayload?.[coinId]?.[quote] || 0);
+
+      if (!fallbackRes.ok || !Number.isFinite(price) || price <= 0) {
+        throw new Error("Failed to fetch price");
+      }
+
+      return {
+        price,
+        source: "coingecko-direct",
+        fetchedAt: new Date().toISOString(),
+      };
     }
-
-    return {
-      price: Number(payload.price || 0),
-      source: payload.source || "unknown",
-      fetchedAt: payload.fetchedAt || new Date().toISOString(),
-    };
   }
 
   async function createAlert(event) {
