@@ -1,9 +1,9 @@
 import { requireApiAuth } from "../../../lib/apiAuth";
 import { applyCors } from "../../../lib/apiCors";
-import { fetchSymbolPrice } from "../../../lib/marketPrice";
+import { fetchSymbolPrice, normalizeMarketSymbol } from "../../../lib/marketPrice";
 
 function normalizeSymbol(symbol) {
-  return String(symbol || "").toUpperCase().replace(/\s+/g, "");
+  return normalizeMarketSymbol(symbol);
 }
 
 function isHit({ direction, currentPrice, targetPrice }) {

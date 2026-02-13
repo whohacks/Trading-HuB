@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
-import { fetchSymbolPrice } from "../../../lib/marketPrice";
+import { fetchSymbolPrice, normalizeMarketSymbol } from "../../../lib/marketPrice";
 
 function normalizeSymbol(symbol) {
-  return String(symbol || "").toUpperCase().replace(/\s+/g, "");
+  return normalizeMarketSymbol(symbol);
 }
 
 function isHit({ direction, currentPrice, targetPrice }) {
@@ -105,6 +105,10 @@ export default async function handler(req, res) {
   let checked = 0;
   let triggered = 0;
   let skipped = 0;
+  let hits = 0;
+  let priceFetchFailed = 0;
+  let notMatched = 0;
+  let telegramFailed = 0;
 
   for (const alertRow of alerts) {
     const settings = settingsMap.get(alertRow.user_id);
@@ -157,6 +161,7 @@ export default async function handler(req, res) {
     }
 
     if (!Number.isFinite(currentPrice) || currentPrice === null) {
+      priceFetchFailed += 1;
       await admin
         .from("alerts")
         .update({ last_checked_at: nowIso })
@@ -169,12 +174,14 @@ export default async function handler(req, res) {
     const hit = targetPrice > 0 && isHit({ direction, currentPrice, targetPrice });
 
     if (!hit) {
+      notMatched += 1;
       await admin
         .from("alerts")
         .update({ last_checked_at: nowIso })
         .eq("id", alertRow.id);
       continue;
     }
+    hits += 1;
 
     const telegramRes = await fetch(
       `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
@@ -189,6 +196,7 @@ export default async function handler(req, res) {
     );
 
     if (!telegramRes.ok) {
+      telegramFailed += 1;
       await admin
         .from("alerts")
         .update({ last_checked_at: nowIso })
@@ -214,6 +222,10 @@ export default async function handler(req, res) {
     checked,
     triggered,
     skipped,
+    hits,
+    notMatched,
+    priceFetchFailed,
+    telegramFailed,
     timestamp: new Date().toISOString(),
   });
 }
