@@ -57,10 +57,11 @@ When `NEXT_PUBLIC_API_BASE_URL` is empty, frontend uses same-origin `/api/...` r
 4. Save `telegram_bot_token` and `telegram_chat_id` in **Settings**.
 5. Alerts page `Sync Now` or `Sync Unsynced Alerts` sends immediately.
 
-## 4) Free Vercel auto alerts (no TradingView paid plan needed)
+## 4) Free auto alerts with cron-job.org (Vercel Hobby compatible)
 
-This app supports free automatic checks via Vercel Cron:
-- Every minute Vercel calls `/api/alerts/cron`
+Vercel Hobby does not allow every-minute Cron.  
+Use [cron-job.org](https://cron-job.org) to call your endpoint every minute:
+- It calls `/api/alerts/cron?key=YOUR_ALERTS_CRON_SECRET`
 - It checks active price alerts
 - If target hits, it sends Telegram instantly and marks alert as triggered
 
@@ -68,7 +69,15 @@ Required Vercel env vars:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (from Supabase Project Settings > API)
-- Optional hardening: `ALERTS_CRON_SECRET` (then call cron manually with `?key=...`)
+- `ALERTS_CRON_SECRET` (required for external scheduler call)
+
+cron-job.org setup:
+1. Create free account and new cron job.
+2. URL:
+   - `https://your-vercel-domain.vercel.app/api/alerts/cron?key=YOUR_ALERTS_CRON_SECRET`
+3. Method: `GET`
+4. Schedule: every 1 minute.
+5. Save and enable job.
 
 Notes:
 - Price source uses Binance first, then Bybit fallback (helps when Binance is region-restricted on Vercel).
@@ -102,7 +111,7 @@ Use this for instant push alerts without local polling.
 ## Notes
 - Telegram sending is handled through authenticated backend API routes.
 - TradingView webhook route is `/api/tradingview/webhook` and validates `TV_WEBHOOK_SECRET`.
-- Free server auto alerts route is `/api/alerts/cron` (configured in `vercel.json`).
+- Free server auto alerts route is `/api/alerts/cron` (trigger with external scheduler on Hobby).
 - Dashboard Binance panel reads Spot balances, Futures balances, Funding wallet, and Futures running positions (`/api/v3/account`, `/fapi/v2/balance`, `/sapi/v1/asset/get-funding-asset`, `/fapi/v2/positionRisk`).
 - Your Binance API key should have `Enable Reading` permission.
 - Binance and Telegram secrets are loaded from `user_settings` on server-side routes only.
