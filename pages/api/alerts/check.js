@@ -31,7 +31,12 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: settingsError.message });
   }
 
-  if (!settings?.telegram_bot_token || !settings?.telegram_chat_id) {
+  const telegramBotToken =
+    settings?.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN || "";
+  const telegramChatId =
+    settings?.telegram_chat_id || process.env.TELEGRAM_CHAT_ID || "";
+
+  if (!telegramBotToken || !telegramChatId) {
     return res.status(400).json({
       error: "Add Telegram bot token and chat id in Settings first.",
     });
@@ -92,12 +97,12 @@ export default async function handler(req, res) {
       ].join("\n");
 
       const telegramRes = await fetch(
-        `https://api.telegram.org/bot${settings.telegram_bot_token}/sendMessage`,
+        `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            chat_id: settings.telegram_chat_id,
+            chat_id: telegramChatId,
             text,
           }),
         },

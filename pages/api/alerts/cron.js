@@ -96,6 +96,8 @@ export default async function handler(req, res) {
   const settingsMap = new Map(
     (settingsRows || []).map((row) => [row.user_id, row]),
   );
+  const envTelegramBotToken = process.env.TELEGRAM_BOT_TOKEN || "";
+  const envTelegramChatId = process.env.TELEGRAM_CHAT_ID || "";
 
   const nowIso = new Date().toISOString();
   const nowMs = Date.now();
@@ -106,11 +108,14 @@ export default async function handler(req, res) {
 
   for (const alertRow of alerts) {
     const settings = settingsMap.get(alertRow.user_id);
+    const telegramBotToken =
+      settings?.telegram_bot_token || envTelegramBotToken;
+    const telegramChatId = settings?.telegram_chat_id || envTelegramChatId;
+
     if (
-      !settings ||
-      settings.alerts_auto_sync === false ||
-      !settings.telegram_bot_token ||
-      !settings.telegram_chat_id
+      settings?.alerts_auto_sync === false ||
+      !telegramBotToken ||
+      !telegramChatId
     ) {
       skipped += 1;
       continue;
@@ -172,12 +177,12 @@ export default async function handler(req, res) {
     }
 
     const telegramRes = await fetch(
-      `https://api.telegram.org/bot${settings.telegram_bot_token}/sendMessage`,
+      `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          chat_id: settings.telegram_chat_id,
+          chat_id: telegramChatId,
           text: buildTelegramText(alertRow, currentPrice),
         }),
       },
@@ -212,4 +217,3 @@ export default async function handler(req, res) {
     timestamp: new Date().toISOString(),
   });
 }
-
