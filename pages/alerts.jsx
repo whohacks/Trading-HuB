@@ -23,6 +23,7 @@ function formatPrice(value, decimals = 6) {
 export default function AlertsPage({ session }) {
   const [form, setForm] = useState(initialForm);
   const [livePrices, setLivePrices] = useState({});
+  const [liveUpdatedAt, setLiveUpdatedAt] = useState(null);
   const [alerts, setAlerts] = useState([]);
   const [settingsFlags, setSettingsFlags] = useState({
     telegramConfigured: false,
@@ -74,7 +75,11 @@ export default function AlertsPage({ session }) {
       throw new Error(payload?.error || "Failed to fetch price");
     }
 
-    return Number(payload.price || 0);
+    return {
+      price: Number(payload.price || 0),
+      source: payload.source || "unknown",
+      fetchedAt: payload.fetchedAt || new Date().toISOString(),
+    };
   }
 
   async function createAlert(event) {
@@ -161,8 +166,8 @@ export default function AlertsPage({ session }) {
     const entries = await Promise.all(
       symbols.map(async (symbol) => {
         try {
-          const price = await fetchCurrentPrice(symbol);
-          return [symbol, { price, ok: true }];
+          const quote = await fetchCurrentPrice(symbol);
+          return [symbol, { ...quote, ok: true }];
         } catch (_error) {
           return [symbol, { price: null, ok: false }];
         }
@@ -174,6 +179,7 @@ export default function AlertsPage({ session }) {
       for (const [symbol, value] of entries) next[symbol] = value;
       return next;
     });
+    setLiveUpdatedAt(new Date().toISOString());
   }
 
   async function checkNow() {
@@ -345,7 +351,10 @@ export default function AlertsPage({ session }) {
       <section className="panel">
         <div className="table-header">
           <h3>Alert Book</h3>
-          <span className="muted-note">Live prices refresh every 5 seconds</span>
+          <span className="muted-note">
+            Live prices refresh every 5 seconds
+            {liveUpdatedAt ? ` • Last updated ${new Date(liveUpdatedAt).toLocaleTimeString()}` : ""}
+          </span>
         </div>
         <div className="table-wrap desktop-only">
           <table className="table-compact alerts-table">
@@ -368,6 +377,7 @@ export default function AlertsPage({ session }) {
                 const liveValue = live?.ok ? Number(live.price) : null;
                 const target = Number(row.target_price || 0);
                 const delta = liveValue !== null && target ? liveValue - target : null;
+                const isMonitoring = row.is_active && !row.sent_to_telegram;
 
                 return (
                   <tr key={row.id}>
@@ -375,9 +385,9 @@ export default function AlertsPage({ session }) {
                     <td>{row.title}</td>
                     <td>{row.symbol || "-"}</td>
                     <td>{row.target_price ? `${formatPrice(row.target_price)} (${row.trigger_direction || "above"})` : "-"}</td>
-                    <td>{liveValue !== null ? formatPrice(liveValue) : "N/A"}</td>
+                    <td>{isMonitoring ? (liveValue !== null ? formatPrice(liveValue) : "N/A") : "-"}</td>
                     <td>
-                      {delta === null ? (
+                      {!isMonitoring || delta === null ? (
                         "-"
                       ) : (
                         <span className={delta >= 0 ? "pnl-positive" : "pnl-negative"}>{formatPrice(delta)}</span>
@@ -421,6 +431,7 @@ export default function AlertsPage({ session }) {
             const liveValue = live?.ok ? Number(live.price) : null;
             const target = Number(row.target_price || 0);
             const delta = liveValue !== null && target ? liveValue - target : null;
+            const isMonitoring = row.is_active && !row.sent_to_telegram;
 
             return (
               <article className="mobile-card" key={row.id}>
@@ -444,12 +455,20 @@ export default function AlertsPage({ session }) {
                   </div>
                   <div className="mobile-meta-row">
                     <span>Live</span>
-                    <span>{liveValue !== null ? formatPrice(liveValue) : "N/A"}</span>
+                    <span>{isMonitoring ? (liveValue !== null ? formatPrice(liveValue) : "N/A") : "-"}</span>
                   </div>
                   <div className="mobile-meta-row">
                     <span>Delta</span>
-                    <span className={delta !== null ? (delta >= 0 ? "pnl-positive" : "pnl-negative") : ""}>
-                      {delta === null ? "-" : formatPrice(delta)}
+                    <span
+                      className={
+                        isMonitoring && delta !== null
+                          ? delta >= 0
+                            ? "pnl-positive"
+                            : "pnl-negative"
+                          : ""
+                      }
+                    >
+                      {!isMonitoring || delta === null ? "-" : formatPrice(delta)}
                     </span>
                   </div>
                   <div className="mobile-meta-row">
