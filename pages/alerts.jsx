@@ -12,7 +12,13 @@ const initialForm = {
 };
 
 function normalizeSymbol(symbol) {
-  return String(symbol || "").toUpperCase().replace(/\s+/g, "");
+  let value = String(symbol || "").toUpperCase().trim();
+  if (!value) return "";
+  if (value.includes(":")) value = value.split(":").pop() || value;
+  value = value.replace(/\.P$/, "");
+  value = value.replace(/[\/\-_]/g, "");
+  value = value.replace(/\s+/g, "");
+  return value;
 }
 
 function formatPrice(value, decimals = 6) {
@@ -58,6 +64,12 @@ export default function AlertsPage({ session }) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const checkingRef = useRef(false);
+  const wsRefs = useRef({
+    linear: null,
+    spot: null,
+    reconnectTimer: null,
+    stopped: false,
+  });
 
   async function loadData() {
     const userId = session.user.id;
@@ -273,10 +285,109 @@ export default function AlertsPage({ session }) {
   }
 
   useEffect(() => {
+    if (!monitoringSymbols.length) return undefined;
     refreshLivePricesForAlerts();
-    const id = setInterval(refreshLivePricesForAlerts, 5000);
+    const id = setInterval(refreshLivePricesForAlerts, 15000);
     return () => clearInterval(id);
-  }, [alerts]);
+  }, [monitoringSymbols.join("|")]);
+
+  useEffect(() => {
+    const refs = wsRefs.current;
+    refs.stopped = false;
+
+    const updateLive = (symbol, price, source) => {
+      const normalized = normalizeSymbol(symbol);
+      if (!normalized || !Number.isFinite(price) || price <= 0) return;
+      setLivePrices((prev) => ({
+        ...prev,
+        [normalized]: {
+          price,
+          ok: true,
+          source,
+          fetchedAt: new Date().toISOString(),
+        },
+      }));
+      setLiveUpdatedAt(new Date().toISOString());
+    };
+
+    const linearSymbols = monitoringSymbols.filter(
+      (symbol) => symbol.endsWith("USDT") || symbol.endsWith("USDC"),
+    );
+    const spotSymbols = monitoringSymbols;
+
+    const subscribe = (ws, symbols) => {
+      if (!ws || ws.readyState !== WebSocket.OPEN || !symbols.length) return;
+      ws.send(
+        JSON.stringify({
+          op: "subscribe",
+          args: symbols.map((symbol) => `tickers.${symbol}`),
+        }),
+      );
+    };
+
+    const connectLinear = () => {
+      const ws = new WebSocket("wss://stream.bybit.com/v5/public/linear");
+      refs.linear = ws;
+
+      ws.onopen = () => subscribe(ws, linearSymbols);
+      ws.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          const topic = payload?.topic || "";
+          if (!topic.startsWith("tickers.")) return;
+          const symbol = topic.replace("tickers.", "");
+          const price = Number(payload?.data?.lastPrice || 0);
+          updateLive(symbol, price, "bybit-linear");
+        } catch (_error) {
+          // ignore malformed frame
+        }
+      };
+      ws.onclose = () => {
+        if (refs.stopped) return;
+        if (refs.reconnectTimer) clearTimeout(refs.reconnectTimer);
+        refs.reconnectTimer = setTimeout(connectLinear, 1500);
+      };
+    };
+
+    const connectSpot = () => {
+      const ws = new WebSocket("wss://stream.bybit.com/v5/public/spot");
+      refs.spot = ws;
+
+      ws.onopen = () => subscribe(ws, spotSymbols);
+      ws.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          const topic = payload?.topic || "";
+          if (!topic.startsWith("tickers.")) return;
+          const symbol = topic.replace("tickers.", "");
+          const price = Number(payload?.data?.lastPrice || 0);
+          updateLive(symbol, price, "bybit-spot");
+        } catch (_error) {
+          // ignore malformed frame
+        }
+      };
+      ws.onclose = () => {
+        if (refs.stopped) return;
+        if (refs.reconnectTimer) clearTimeout(refs.reconnectTimer);
+        refs.reconnectTimer = setTimeout(connectSpot, 1500);
+      };
+    };
+
+    if (monitoringSymbols.length) {
+      connectLinear();
+      connectSpot();
+    }
+
+    return () => {
+      refs.stopped = true;
+      if (refs.reconnectTimer) clearTimeout(refs.reconnectTimer);
+      refs.reconnectTimer = null;
+      if (refs.linear && refs.linear.readyState <= 1) refs.linear.close();
+      if (refs.spot && refs.spot.readyState <= 1) refs.spot.close();
+      refs.linear = null;
+      refs.spot = null;
+    };
+  }, [monitoringSymbols.join("|")]);
 
   const activeCount = useMemo(
     () => alerts.filter((row) => row.alert_type === "price" && row.is_active && !row.sent_to_telegram).length,
@@ -294,6 +405,18 @@ export default function AlertsPage({ session }) {
   );
 
   const telegramReady = Boolean(settingsFlags.telegramConfigured);
+  const monitoringSymbols = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          alerts
+            .filter((row) => row.is_active && !row.sent_to_telegram)
+            .map((row) => normalizeSymbol(row.symbol))
+            .filter(Boolean),
+        ),
+      ),
+    [alerts],
+  );
 
   return (
     <div className="stack">
@@ -302,7 +425,7 @@ export default function AlertsPage({ session }) {
           <div>
             <p className="eyebrow">Alert Center</p>
             <h2>Price Alerts</h2>
-            <p>Create alerts, run manual sync, and get server-side auto checks every minute on Vercel.</p>
+            <p>Create alerts and monitor live prices with WebSocket updates.</p>
           </div>
           <div className="alerts-actions">
             <button className="ghost" type="button" onClick={refreshLivePricesForAlerts}>
@@ -415,7 +538,7 @@ export default function AlertsPage({ session }) {
         <div className="table-header">
           <h3>Alert Book</h3>
           <span className="muted-note">
-            Live prices refresh every 5 seconds
+            Live via Bybit WebSocket (15s fallback poll)
             {liveUpdatedAt ? ` • Last updated ${new Date(liveUpdatedAt).toLocaleTimeString()}` : ""}
           </span>
         </div>

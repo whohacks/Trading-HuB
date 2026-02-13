@@ -108,6 +108,35 @@ Use this for instant push alerts without local polling.
 
 5. On trigger, webhook sends Telegram instantly.
 
+## 6) True live alerts worker (Bybit WebSocket, instant trigger)
+
+Use this for exact live price monitoring (tick stream), independent of Vercel cron.
+
+Required env vars:
+- `SUPABASE_URL` (or `NEXT_PUBLIC_SUPABASE_URL`)
+- `SUPABASE_SERVICE_ROLE_KEY`
+- Telegram either per user in Settings or global:
+  - `TELEGRAM_BOT_TOKEN`
+  - `TELEGRAM_CHAT_ID`
+- Optional: `ALERT_WORKER_SYNC_MS` (default `15000`)
+
+Run locally:
+
+```bash
+cd /Users/avatanshsharma/Documents/New\ project/hackathon/frontend
+npm install
+npm run worker:alerts
+```
+
+What it does:
+- Connects to Bybit WebSocket (`linear` + `spot`)
+- Loads active unsent alerts from Supabase
+- Subscribes only needed symbols
+- Triggers Telegram instantly when price crosses target
+- Marks alert as triggered in Supabase
+
+Deploy this worker on an always-on service (Render/Railway/Fly.io) for 24x7 live alerts.
+
 ## Notes
 - Telegram sending is handled through authenticated backend API routes.
 - TradingView webhook route is `/api/tradingview/webhook` and validates `TV_WEBHOOK_SECRET`.
