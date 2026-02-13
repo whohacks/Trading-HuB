@@ -23,12 +23,6 @@ function formatPrice(value, decimals = 6) {
 export default function AlertsPage({ session }) {
   const [form, setForm] = useState(initialForm);
   const [livePrices, setLivePrices] = useState({});
-  const [pricePreview, setPricePreview] = useState({
-    loading: false,
-    value: null,
-    error: "",
-    symbol: "",
-  });
   const [alerts, setAlerts] = useState([]);
   const [settingsFlags, setSettingsFlags] = useState({
     telegramConfigured: false,
@@ -81,33 +75,6 @@ export default function AlertsPage({ session }) {
     }
 
     return Number(payload.price || 0);
-  }
-
-  async function refreshPricePreview(symbolInput = form.symbol) {
-    const symbol = normalizeSymbol(symbolInput);
-    if (!symbol) {
-      setPricePreview({ loading: false, value: null, error: "", symbol: "" });
-      return;
-    }
-
-    setPricePreview((prev) => ({
-      ...prev,
-      loading: true,
-      error: "",
-      symbol,
-    }));
-
-    try {
-      const price = await fetchCurrentPrice(symbol);
-      setPricePreview({ loading: false, value: price, error: "", symbol });
-    } catch (error) {
-      setPricePreview({
-        loading: false,
-        value: null,
-        error: error?.message || "Unable to fetch price",
-        symbol,
-      });
-    }
   }
 
   async function createAlert(event) {
@@ -242,19 +209,6 @@ export default function AlertsPage({ session }) {
     return () => clearInterval(id);
   }, [alerts]);
 
-  useEffect(() => {
-    const symbol = normalizeSymbol(form.symbol);
-    if (!symbol) {
-      setPricePreview({ loading: false, value: null, error: "", symbol: "" });
-      return undefined;
-    }
-
-    const timerId = setTimeout(() => {
-      refreshPricePreview(symbol);
-    }, 300);
-    return () => clearTimeout(timerId);
-  }, [form.symbol]);
-
   const activeCount = useMemo(
     () => alerts.filter((row) => row.alert_type === "price" && row.is_active && !row.sent_to_telegram).length,
     [alerts],
@@ -312,101 +266,78 @@ export default function AlertsPage({ session }) {
           </div>
         </div>
 
-        <div className="alerts-grid">
-          <form className="panel form-panel" onSubmit={createAlert}>
-            <h3>New Alert</h3>
-            <div className="form-grid">
-              <label>
-                Alert Name
-                <input
-                  value={form.title}
-                  onChange={(e) => setForm((s) => ({ ...s, title: e.target.value }))}
-                  placeholder="BTC Breakout"
-                  required
-                />
-              </label>
-              <label>
-                Symbol
-                <input
-                  value={form.symbol}
-                  onChange={(e) => setForm((s) => ({ ...s, symbol: e.target.value }))}
-                  placeholder="BTCUSDT"
-                  required
-                />
-              </label>
-              <label>
-                Target Price
-                <input
-                  type="number"
-                  step="any"
-                  value={form.target_price}
-                  onChange={(e) => setForm((s) => ({ ...s, target_price: e.target.value }))}
-                  required
-                />
-              </label>
-              <label>
-                Trigger
-                <select
-                  value={form.trigger_direction}
-                  onChange={(e) => setForm((s) => ({ ...s, trigger_direction: e.target.value }))}
-                >
-                  <option value="above">Above or Equal</option>
-                  <option value="below">Below or Equal</option>
-                </select>
-              </label>
-              <label>
-                Frequency
-                <select
-                  value={form.frequency_seconds}
-                  onChange={(e) => setForm((s) => ({ ...s, frequency_seconds: e.target.value }))}
-                >
-                  <option value="5">Every 5 seconds</option>
-                  <option value="10">Every 10 seconds</option>
-                  <option value="30">Every 30 seconds</option>
-                  <option value="60">Every 1 minute</option>
-                </select>
-              </label>
-              <label>
-                Severity
-                <select
-                  value={form.severity}
-                  onChange={(e) => setForm((s) => ({ ...s, severity: e.target.value }))}
-                >
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                </select>
-              </label>
-            </div>
+        <form className="panel form-panel" onSubmit={createAlert}>
+          <h3>New Alert</h3>
+          <div className="form-grid">
+            <label>
+              Alert Name
+              <input
+                value={form.title}
+                onChange={(e) => setForm((s) => ({ ...s, title: e.target.value }))}
+                placeholder="BTC Breakout"
+                required
+              />
+            </label>
+            <label>
+              Symbol
+              <input
+                value={form.symbol}
+                onChange={(e) => setForm((s) => ({ ...s, symbol: e.target.value }))}
+                placeholder="BTCUSDT"
+                required
+              />
+            </label>
+            <label>
+              Target Price
+              <input
+                type="number"
+                step="any"
+                value={form.target_price}
+                onChange={(e) => setForm((s) => ({ ...s, target_price: e.target.value }))}
+                required
+              />
+            </label>
+            <label>
+              Trigger
+              <select
+                value={form.trigger_direction}
+                onChange={(e) => setForm((s) => ({ ...s, trigger_direction: e.target.value }))}
+              >
+                <option value="above">Above or Equal</option>
+                <option value="below">Below or Equal</option>
+              </select>
+            </label>
+            <label>
+              Frequency
+              <select
+                value={form.frequency_seconds}
+                onChange={(e) => setForm((s) => ({ ...s, frequency_seconds: e.target.value }))}
+              >
+                <option value="5">Every 5 seconds</option>
+                <option value="10">Every 10 seconds</option>
+                <option value="30">Every 30 seconds</option>
+                <option value="60">Every 1 minute</option>
+              </select>
+            </label>
+            <label>
+              Severity
+              <select
+                value={form.severity}
+                onChange={(e) => setForm((s) => ({ ...s, severity: e.target.value }))}
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </label>
+          </div>
 
-            <div className="row" style={{ marginTop: 10 }}>
-              <button className="primary" type="submit" disabled={busy}>
-                Save Alert
-              </button>
-            </div>
-          </form>
-
-          <aside className="panel live-panel">
-            <h3>Live Preview</h3>
-            <p className="muted-note">Current market snapshot for the symbol in your form.</p>
-            <div className="live-value">
-              {pricePreview.value !== null
-                ? `${pricePreview.symbol} ${formatPrice(pricePreview.value)}`
-                : pricePreview.loading
-                  ? "Loading..."
-                  : "Enter symbol"}
-            </div>
-            <button
-              className="ghost"
-              type="button"
-              onClick={() => refreshPricePreview()}
-              disabled={pricePreview.loading || !normalizeSymbol(form.symbol)}
-            >
-              Refresh
+          <div className="row" style={{ marginTop: 10 }}>
+            <button className="primary" type="submit" disabled={busy}>
+              Save Alert
             </button>
-            {pricePreview.error ? <p className="status-text">{pricePreview.error}</p> : null}
-          </aside>
-        </div>
+          </div>
+        </form>
 
         {status ? <p className="status-text">{status}</p> : null}
       </section>
@@ -601,31 +532,11 @@ export default function AlertsPage({ session }) {
           color: #f0f0f0;
         }
 
-        .alerts-grid {
+        .form-panel {
           margin-top: 12px;
-          display: grid;
-          gap: 12px;
-          grid-template-columns: 2fr 1fr;
-          align-items: start;
-        }
-
-        .form-panel,
-        .live-panel {
           padding: 14px;
           border: 1px solid rgba(130, 130, 130, 0.3);
           background: rgba(16, 16, 16, 0.88);
-        }
-
-        .live-value {
-          margin-top: 10px;
-          margin-bottom: 10px;
-          padding: 12px;
-          border-radius: 10px;
-          border: 1px solid rgba(130, 130, 130, 0.35);
-          background: rgba(14, 14, 14, 0.95);
-          font-size: 20px;
-          font-weight: 700;
-          color: #f1f1f1;
         }
 
         .table-header {
@@ -664,9 +575,6 @@ export default function AlertsPage({ session }) {
             grid-template-columns: repeat(2, minmax(0, 1fr));
           }
 
-          .alerts-grid {
-            grid-template-columns: 1fr;
-          }
         }
 
         @media (max-width: 620px) {
@@ -687,10 +595,6 @@ export default function AlertsPage({ session }) {
             align-items: flex-start;
           }
 
-          .live-value {
-            font-size: 16px;
-            line-height: 1.35;
-          }
         }
       `}</style>
     </div>
